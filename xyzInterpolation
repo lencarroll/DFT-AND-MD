@@ -1,0 +1,95 @@
+import pandas as pd
+import numpy as np
+import csv
+
+#coordinates are from the read.py file.
+#outputname is the output file name you want to use
+#replicas is the number of frames you want to interpolate
+#method is the interpolation method used: CSpline, Linear or Nearest
+class interpFrame:
+    def __init__(self,coordinates,outputname,replicas,method):
+
+        if method == "CSpline" or method == "Cspline" or method == "cpsline":
+            from scipy.interpolate import CubicSpline
+
+        else:
+            from scipy.interpolate import interp1d
+
+        X_values = []
+        Y_values = []
+        Z_values = []
+
+        #Here we split the X, Y and Z values for each atom. X_values (e.g.) is a list of lists. Each sub-list contains the X value for each atom per frame. For example: [[0,0,0],[1,1.2,2]] means that atom 1 has
+        #values of 0, 0 and 0 over 3 frames, while atom 2 has values of 1, 1.2 and 2 over 3 frames.
+        for i in range(len(coordinates.coordinates[0])):
+            X_val = []
+            Y_val = []
+            Z_val = []
+            for j in range(len(coordinates.coordinates)):
+                X = coordinates.coordinates[j][i][1]
+                Y = coordinates.coordinates[j][i][2]
+                Z = coordinates.coordinates[j][i][3]
+
+                X_val.append(X)
+                Y_val.append(Y)
+                Z_val.append(Z)
+
+            X_values.append(X_val)
+            Y_values.append(Y_val)
+            Z_values.append(Z_val)
+            
+        #This is the number of frames we start with
+        Time = range(len(coordinates.coordinates))
+
+        X_interp = []
+        Y_interp = []
+        Z_interp = []
+
+        #Here we start the interpolation. We use construct a list of the number of frames we want.
+        for i in range(len(coordinates.coordinates[0])):
+            #If we use e.g two frames [0,1], then this TimeNew list if we wanted 4 frames would become [0, 0.33, 0.67, 1]
+            TimeNew = np.linspace(0,len(coordinates.coordinates)-1,replicas)
+            if (len(coordinates.coordinates)-1) not in TimeNew:
+                TimeNew = np.append(TimeNew,len(coordinates.coordinates)-1)
+                
+            #Based on the interpolation method chosen, we perform the interpolation per dimension and add it to separate lists
+            if method == "CSpline" or method == "Cspline" or method == "cpsline":
+                fX = CubicSpline(Time, X_values[i], bc_type='natural')
+                fY = CubicSpline(Time, Y_values[i], bc_type='natural')
+                fZ = CubicSpline(Time, Z_values[i], bc_type='natural')
+                X_interp.append(fX(TimeNew))
+                Y_interp.append(fY(TimeNew))
+                Z_interp.append(fZ(TimeNew))
+            elif method == "Linear" or method == "linear":
+                fX = interp1d(Time, X_values[i], kind='linear')
+                fY = interp1d(Time, Y_values[i], kind='linear')
+                fZ = interp1d(Time, Z_values[i], kind='linear')
+                X_interp.append(fX(TimeNew))
+                Y_interp.append(fY(TimeNew))
+                Z_interp.append(fZ(TimeNew)) 
+            else:
+                fX = interp1d(Time, X_values[i], kind='nearest')
+                fY = interp1d(Time, Y_values[i], kind='nearest')
+                fZ = interp1d(Time, Z_values[i], kind='nearest')
+                X_interp.append(fX(TimeNew))
+                Y_interp.append(fY(TimeNew))
+                Z_interp.append(fZ(TimeNew))
+                
+        #This is to replace any old file
+        f = open(outputname,"w")
+        f.close()
+
+        #Here we print the interpolated frames out
+        for i in range(len(X_interp[0])): #Num_of_Frames
+            X_values = []
+            Y_values = []
+            Z_values = []
+            for j in range(len(X_interp)): #Num_of_Atoms 
+                X_values.append(X_interp[j][i])
+                Y_values.append(Y_interp[j][i])
+                Z_values.append(Z_interp[j][i])
+            with open(outputname,"a") as f:
+                print(len(coordinates.coordinates[0]),file=f)
+                print("XYZ frame interpolated",file=f)
+                for j in range(len(X_values)):
+                    print(coordinates.coordinates[0][j][0],X_values[j],Y_values[j],Z_values[j],file=f) #Here we get the atom types and match it up with the coordinates.
